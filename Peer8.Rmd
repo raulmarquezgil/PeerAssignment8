@@ -1,0 +1,89 @@
+---
+title: "Practical Machine Learning"
+author: "Raul Marquez"
+date: "January 2018"
+output: html_document
+---
+
+## Summary
+
+This document describes how it is tried to identify a good prediction model for datasets with information taken from devices that read human activity. The input information is found in a file, that will be divided in two parts, for training and testing the model. The proposed model is Random Forest. In case the results are not good, it will be defined a different one, but it will be seen that it is not the case. Finally, there is another data set that is used to generate a solution for the final quiz of the course.
+
+## Loading Data
+
+Initially, the training set is loaded. Due to many missing values, the most of the columns will be forced to numerical type. The target result, "classe" will be defined as factor, and all the NA values after forcing to numerical, will be set to 0.
+
+```{r, results="hide"}
+library(readr)
+coltype <- "iciicciddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddc"
+training <- read_csv("./pml-training.csv", col_types=coltype)
+training$classe <- as.factor(training$classe)
+training[is.na(training)] <- 0
+```
+
+## Preprocessing Data
+
+In the dataset there are 160 variables, so the first step will be to reduce the number of them by removing the ones without information.
+First, by removing the first by removing the columns 1 to 7, that after visual inspection are identified to have only indexes and dates. Second, by removing all the variables that are having only 1 possible value for all the rows (i.e. all equal to 0).
+
+```` {r}
+training <- training[,8:160]
+diff.values.incolumn <- vector()
+for (numcol in 1:ncol(training)) {
+     num.value <- nrow(unique(training[,numcol]))
+     diff.values.incolumn <- c(diff.values.incolumn, num.value)
+}
+cols.2.remove <- diff.values.incolumn<2
+training <- training[,!cols.2.remove]
+````
+
+All these steps reduced the number of variables from 160 to 144.
+
+
+## Splitting in training/testing data sets
+
+The data set will be divided in two parts, one for training the models (with the 70% of the samples) and other for testing the models calculated (with the 30% of samples).
+
+```` {r}
+library(caret, verbose = FALSE)
+set.seed(1111)
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+sub_train <- training[inTrain,]
+sub_test <- training[-inTrain,]
+````
+
+
+## Training Model: Random Forest
+
+The first method selected is Random Forest. It will be used also the cross validation, by including it in the function.
+
+```` {r cache=TRUE}
+model_rf <- train(classe ~ ., data=sub_train, method="rf", trControl = trainControl(method="cv", number=3))
+
+````
+
+## Testing Model
+
+Thes results of the model will be tested by predicting the variable "classe" for the testing data set and comparing results with the real classe values.
+
+```` {r cache=TRUE}
+prediction_rf <- predict(model_rf, newdata=sub_test)
+cfmatrix <- confusionMatrix(prediction_rf, sub_test$classe)
+cfmatrix
+````
+
+It can be seen that the accuracy is higher than 99%, so this model can be considered very good for prediction of "classe". These are the main predictors in the model ordered by importance:
+```` {r}
+varImp(model_rf)
+````
+
+## Prediction for Quiz
+
+The model created will be used to predict using the other data set, used for the quiz:
+
+````{r}
+testing <- read_csv("./pml-testing.csv", col_types=coltype)
+testing[is.na(testing)] <- 0
+quiz.results <- predict(model_rf,testing)
+quiz.results
+````
